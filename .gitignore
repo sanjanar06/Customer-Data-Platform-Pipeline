@@ -1,0 +1,91 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+
+# Java/Gradle
+.gradle/
+build/
+target/
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*
+.settings/
+.classpath
+.project
+bin/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.iml
+
+# Environment variables
+.env
+.env.local
+*.env
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Docker volumes (data should not be in repo)
+mongodb_data/
+neo4j_data/
+neo4j_logs/
+flink_jobs/
+
+# OS
+.DS_Store
+Thumbs.db
+*.tmp
+*.bak
+*.swp
+*~.nib
+
+# Jupyter Notebooks (if any)
+.ipynb_checkpoints/
+*.ipynb
+
+# Dependencies
+node_modules/
+
+# Temporary files
+tmp/
+temp/
+*.cache

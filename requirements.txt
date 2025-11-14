@@ -1,0 +1,15 @@
+# Database Connectivity Testing
+pymongo==4.6.1
+neo4j==5.14.1
+
+# PyFlink 
+# apache-flink==1.18.0  # Commented out: requires Python <3.11. Install separately when needed with Python 3.11/3.12
+
+# AI Agent 
+fastapi==0.104.1
+uvicorn==0.24.0
+google-generativeai==0.3.1
+pydantic>=2.9.0  # Updated for Python 3.13 compatibility
+
+# Utilities
+python-dotenv==1.0.0
