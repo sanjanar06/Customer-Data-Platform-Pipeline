@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+"""
+Wrapper script to run the refactored Batch Job.
+Provides backward compatibility with the original batch_job.py interface.
+"""
+import sys
+import os
+
+# Add project root to Python path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
+from src.python.batch.main import main
+
+if __name__ == "__main__":
+    sys.exit(main())
