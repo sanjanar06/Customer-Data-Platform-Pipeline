@@ -1,0 +1,91 @@
+"""
+Application Constants
+Centralized constants used throughout the CDP application.
+"""
+
+# Event Types
+EVENT_TYPE_PAGE_VIEW = "page_view"
+EVENT_TYPE_LOGIN = "login"
+EVENT_TYPE_LOGOUT = "logout"
+EVENT_TYPE_ADD_TO_CART = "add_to_cart"
+EVENT_TYPE_REMOVE_FROM_CART = "remove_from_cart"
+EVENT_TYPE_PURCHASE = "purchase"
+EVENT_TYPE_SEARCH = "search"
+
+ALL_EVENT_TYPES = [
+    EVENT_TYPE_PAGE_VIEW,
+    EVENT_TYPE_LOGIN,
+    EVENT_TYPE_LOGOUT,
+    EVENT_TYPE_ADD_TO_CART,
+    EVENT_TYPE_REMOVE_FROM_CART,
+    EVENT_TYPE_PURCHASE,
+    EVENT_TYPE_SEARCH,
+]
+
+# Identity Types
+IDENTITY_TYPE_EMAIL = "email"
+IDENTITY_TYPE_DEVICE_ID = "deviceID"
+IDENTITY_TYPE_USER_ID = "userID"
+IDENTITY_TYPE_PHONE = "phone"
+IDENTITY_TYPE_COOKIE = "cookie"
+
+ALL_IDENTITY_TYPES = [
+    IDENTITY_TYPE_EMAIL,
+    IDENTITY_TYPE_DEVICE_ID,
+    IDENTITY_TYPE_USER_ID,
+    IDENTITY_TYPE_PHONE,
+    IDENTITY_TYPE_COOKIE,
+]
+
+# Offer Types (for Personalization API)
+OFFER_TYPE_UPSELL = "upsell"
+OFFER_TYPE_CROSS_SELL = "cross-sell"
+OFFER_TYPE_LOYALTY = "loyalty"
+OFFER_TYPE_WIN_BACK = "win-back"
+OFFER_TYPE_WELCOME = "welcome"
+
+ALL_OFFER_TYPES = [
+    OFFER_TYPE_UPSELL,
+    OFFER_TYPE_CROSS_SELL,
+    OFFER_TYPE_LOYALTY,
+    OFFER_TYPE_WIN_BACK,
+    OFFER_TYPE_WELCOME,
+]
+
+# Engagement Score Thresholds
+ENGAGEMENT_LOW_THRESHOLD = 40
+ENGAGEMENT_MEDIUM_THRESHOLD = 70
+ENGAGEMENT_HIGH_THRESHOLD = 100
+
+# Lifetime Value Tiers
+LTV_TIER_LOW = 0
+LTV_TIER_MEDIUM = 500
+LTV_TIER_HIGH = 1000
+LTV_TIER_VIP = 5000
+
+# Database Collections/Labels
+MONGO_COLLECTION_PROFILES = "profiles"
+NEO4J_LABEL_PROFILE = "Profile"
+NEO4J_LABEL_IDENTITY = "Identity"
+NEO4J_RELATIONSHIP_HAS_IDENTITY = "HAS_IDENTITY"
+
+# Time Constants (in seconds)
+ONE_DAY_SECONDS = 86400
+ONE_WEEK_SECONDS = 604800
+ONE_MONTH_SECONDS = 2592000
+
+# Batch Processing
+MAX_EVENT_HISTORY_SIZE = 100  # Keep last N events per profile
+DEFAULT_BATCH_SIZE = 50
+
+# API Response Messages
+MSG_PROFILE_NOT_FOUND = "Profile not found"
+MSG_INVALID_PROFILE_ID = "Invalid profile ID format"
+MSG_DATABASE_ERROR = "Database operation failed"
+MSG_AI_SERVICE_UNAVAILABLE = "AI service temporarily unavailable"
+
+# Validation
+MIN_PROFILE_ID_LENGTH = 5
+MAX_PROFILE_ID_LENGTH = 100
+MIN_EMAIL_LENGTH = 5
+MAX_EMAIL_LENGTH = 255
