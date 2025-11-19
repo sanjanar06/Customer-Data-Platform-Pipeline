@@ -28,6 +28,9 @@ dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
     implementation 'com.fasterxml.jackson.core:jackson-annotations:2.15.2'
     
+    // Apache Commons Text (for string manipulation) Fuzzy Matching
+    implementation 'org.apache.commons:commons-text:1.11.0'
+
     // Apache Flink (provided by cluster, not bundled in JAR)
     compileOnly 'org.apache.flink:flink-streaming-java:1.18.0'
     compileOnly 'org.apache.flink:flink-clients:1.18.0'

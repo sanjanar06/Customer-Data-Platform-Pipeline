@@ -28,7 +28,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(personalization_router)
-
+app.include_router(graph_router)
 
 @app.get("/")
 async def root():
@@ -42,6 +42,7 @@ async def root():
         "endpoints": {
             "personalize": "/api/personalize/{profile_id}",
             "profile_summary": "/api/profile/{profile_id}",
+            "graph_cluster": "/api/graph/cluster/{profile_id}",
             "docs": "/docs",
             "redoc": "/redoc"
         }

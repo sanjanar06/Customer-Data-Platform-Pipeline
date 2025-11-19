@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.cdp.utils.IdentityNormalizer;
 import com.fasterxml.jackson.databind.JsonNode;
 
 public class CustomerEvent {
@@ -32,6 +33,7 @@ public class CustomerEvent {
             this.timestamp = System.currentTimeMillis() / 1000;
         }
         
+        // Parse identities
         if (eventNode.has("identities") && eventNode.get("identities").isObject()) {
             JsonNode identitiesNode = eventNode.get("identities");
             identitiesNode.fields().forEachRemaining(entry -> {
@@ -42,16 +44,18 @@ public class CustomerEvent {
         if (eventNode.has("properties") && eventNode.get("properties").isObject()) {
             JsonNode propertiesNode = eventNode.get("properties");
             propertiesNode.fields().forEachRemaining(entry -> {
-                JsonNode value = entry.getValue();
-                if (value.isTextual()) {
-                    this.properties.put(entry.getKey(), value.asText());
-                } else if (value.isNumber()) {
-                    this.properties.put(entry.getKey(), value.asDouble());
-                } else if (value.isBoolean()) {
-                    this.properties.put(entry.getKey(), value.asBoolean());
-                } else {
-                    this.properties.put(entry.getKey(), value.toString());
+                String type = entry.getKey();
+                String rawValue = entry.getValue().asText();
+                String normalizedValue = rawValue;
+
+                // Apply normalization based on type
+                if (type.equalsIgnoreCase("email")) {
+                    normalizedValue = IdentityNormalizer.normalizeEmail(rawValue);
+                } else if (type.equalsIgnoreCase("phone")) {
+                    normalizedValue = IdentityNormalizer.normalizePhone(rawValue);
                 }
+
+                this.identities.put(type, normalizedValue);
             });
         }
     }
