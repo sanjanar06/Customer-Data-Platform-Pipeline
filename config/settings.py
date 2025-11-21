@@ -17,11 +17,21 @@ class Settings(BaseSettings):
     MONGO_USER: str = "admin"
     MONGO_PASSWORD: str = "password123"
     MONGO_DB: str = "cdp"
+
+    POSTGRES_HOST: str = "localhost"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_USER: str = "cdp_user"
+    POSTGRES_PASSWORD: str = "cdp_password"
+    POSTGRES_DB: str = "cdp_analytics"
     
     @property
     def MONGO_URI(self) -> str:
         """Build MongoDB connection URI."""
         return f"mongodb://{self.MONGO_USER}:{self.MONGO_PASSWORD}@{self.MONGO_HOST}:{self.MONGO_PORT}/"
+    
+    @property
+    def POSTGRES_URI(self) -> str:
+        return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
     
     # Neo4j Settings
     NEO4J_URI: str = "bolt://localhost:7687"
@@ -40,7 +50,7 @@ class Settings(BaseSettings):
     
     # AI/Gemini Settings
     GEMINI_API_KEY: Optional[str] = None
-    GEMINI_MODEL: str = "gemini-pro"
+    GEMINI_MODEL: str = "gemini-1.5-flash"
     GEMINI_TEMPERATURE: float = 0.7
     GEMINI_MAX_TOKENS: int = 1024
     
@@ -53,6 +63,7 @@ class Settings(BaseSettings):
     # Batch Job Settings
     BATCH_PROFILE_LIMIT: Optional[int] = None  # None = process all
     BATCH_CHUNK_SIZE: int = 100
+    BATCH_INTERVAL_MINUTES: int = 5  # Run batch job every N minutes
     
     class Config:
         """Pydantic configuration."""

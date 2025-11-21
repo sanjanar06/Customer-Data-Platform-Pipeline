@@ -14,7 +14,7 @@ echo "This will generate 7 demo events for identity stitching"
 echo ""
 
 # Run producer in demo mode (one iteration)
-python run_producer.py --mode demo --interval 1
+python ./scripts/run_producer.py --mode demo --interval 1
 
 echo ""
 echo "=========================================="

@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from config.logging_config import setup_logging, get_logger
+from .routers import graph_router
 from .routers import personalization_router
 from .services.ai_service import model as gemini_model
 

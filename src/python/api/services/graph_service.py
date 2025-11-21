@@ -30,12 +30,12 @@ class GraphService:
         """
         query = """
         MATCH (p:Profile {master_profile_id: $profile_id})-[:HAS_IDENTITY]->(i:Identity)
-        WITH p, collect({type: i.type, value: i.value}) AS identities
+        WITH p, collect({type: i.type, value: i.value}) AS identities, count(i) AS total_identities
         OPTIONAL MATCH (p)-[r:LINK]->(other) // Placeholder for future cross-profile links
         RETURN 
           p.master_profile_id AS master_profile_id,
           identities,
-          count(i) AS total_identities,
+          total_identities,
           collect({target: other.master_profile_id, rel_type: type(r)}) AS related_profiles
         """
         try:
@@ -82,4 +82,87 @@ class GraphService:
             logger.error(f"Neo4j merge failed: {e}")
             raise HTTPException(status_code=500, detail="Manual profile merge failed")
             
-    # Placeholder for split_profiles method...
+    @staticmethod
+    def detect_anomalies(threshold_emails: int = 3, threshold_devices: int = 5) -> Dict[str, Any]:
+        """
+        Scans the graph for 'Hairball' profiles that might represent 
+        shared devices or bad merges.
+        """
+        # Query 1: Find profiles with too many emails (potential shared account or bad merge)
+        email_query = """
+        MATCH (p:Profile)-[:HAS_IDENTITY]->(i:Identity {type: 'email'})
+        WITH p, count(i) AS email_count, collect(i.value) AS emails
+        WHERE email_count >= $threshold
+        RETURN p.master_profile_id AS profile_id, email_count, emails
+        ORDER BY email_count DESC
+        LIMIT 10
+        """
+        
+        # Query 2: Find profiles with too many devices (potential public kiosk)
+        device_query = """
+        MATCH (p:Profile)-[:HAS_IDENTITY]->(i:Identity {type: 'deviceID'})
+        WITH p, count(i) AS device_count, collect(i.value) AS devices
+        WHERE device_count >= $threshold
+        RETURN p.master_profile_id AS profile_id, device_count, devices
+        ORDER BY device_count DESC
+        LIMIT 10
+        """
+        
+        try:
+            suspicious_emails = GraphService._execute_read_query(email_query, {"threshold": threshold_emails})
+            suspicious_devices = GraphService._execute_read_query(device_query, {"threshold": threshold_devices})
+            
+            return {
+                "summary": f"Found {len(suspicious_emails)} profiles with >{threshold_emails} emails and {len(suspicious_devices)} with >{threshold_devices} devices.",
+                "high_email_profiles": suspicious_emails,
+                "high_device_profiles": suspicious_devices
+            }
+            
+        except Exception as e:
+            logger.error(f"Anomaly detection failed: {e}")
+            raise HTTPException(status_code=500, detail="Failed to run anomaly check")
+    
+    @staticmethod
+    def split_identity(profile_id: str, identity_type: str, identity_value: str) -> Dict[str, Any]:
+        """
+        'Graph Surgery': Detaches a specific identity from a profile and 
+        assigns it to a brand new profile.
+        Useful for fixing 'Hairballs' or bad merges.
+        """
+        query = """
+        MATCH (old_p:Profile {master_profile_id: $profile_id})-[r:HAS_IDENTITY]->(i:Identity {type: $type, value: $value})
+        
+        // 1. Delete the old relationship
+        DELETE r
+        
+        // 2. Create a NEW Profile for this identity
+        CREATE (new_p:Profile {
+            master_profile_id: 'profile_' + toString(randomUUID()), 
+            created_at: datetime()
+        })
+        
+        // 3. Link identity to the new profile
+        MERGE (new_p)-[:HAS_IDENTITY]->(i)
+        
+        RETURN old_p.master_profile_id AS old_id, new_p.master_profile_id AS new_id
+        """
+        
+        try:
+            result = GraphService._execute_read_query(query, {
+                "profile_id": profile_id,
+                "type": identity_type,
+                "value": identity_value
+            })
+            
+            if not result:
+                raise HTTPException(status_code=404, detail="Identity or Profile not found")
+            
+            return {
+                "status": "success", 
+                "message": f"Identity {identity_value} moved from {result[0]['old_id']} to {result[0]['new_id']}",
+                "new_profile_id": result[0]['new_id']
+            }
+            
+        except Exception as e:
+            logger.error(f"Split failed: {e}")
+            raise HTTPException(status_code=500, detail="Failed to split profile")

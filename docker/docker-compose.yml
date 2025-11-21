@@ -73,6 +73,25 @@ services:
         taskmanager.numberOfTaskSlots: 2
     networks:
       - cdp-network
+      
+  postgres:
+    image: postgres:15
+    container_name: cdp-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: cdp_user
+      POSTGRES_PASSWORD: cdp_password
+      POSTGRES_DB: cdp_analytics
+    volumes:
+      - postgress_data:/var/lib/postgresql/data
+    networks:
+      - cdp-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cdp_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 networks:
   cdp-network:
@@ -83,3 +102,4 @@ volumes:
   neo4j_data:
   neo4j_logs:
   flink_jobs:
+  postgress_data:

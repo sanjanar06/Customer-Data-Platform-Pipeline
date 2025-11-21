@@ -37,26 +37,35 @@ public class CustomerEvent {
         if (eventNode.has("identities") && eventNode.get("identities").isObject()) {
             JsonNode identitiesNode = eventNode.get("identities");
             identitiesNode.fields().forEachRemaining(entry -> {
-                this.identities.put(entry.getKey(), entry.getValue().asText());
+                String type = entry.getKey();
+                String rawValue = entry.getValue().asText();
+                String normalizedValue = rawValue;
+
+                if (type.equalsIgnoreCase("email")) {
+                    normalizedValue = IdentityNormalizer.normalizeEmail(rawValue);
+                } else if (type.equalsIgnoreCase("phone")) {
+                    normalizedValue = IdentityNormalizer.normalizePhone(rawValue);
+                }
+                this.identities.put(type, normalizedValue);
+
             });
         }
         
         if (eventNode.has("properties") && eventNode.get("properties").isObject()) {
             JsonNode propertiesNode = eventNode.get("properties");
             propertiesNode.fields().forEachRemaining(entry -> {
-                String type = entry.getKey();
-                String rawValue = entry.getValue().asText();
-                String normalizedValue = rawValue;
-
-                // Apply normalization based on type
-                if (type.equalsIgnoreCase("email")) {
-                    normalizedValue = IdentityNormalizer.normalizeEmail(rawValue);
-                } else if (type.equalsIgnoreCase("phone")) {
-                    normalizedValue = IdentityNormalizer.normalizePhone(rawValue);
+                JsonNode value = entry.getValue();
+                if (value.isTextual()) {
+                    this.properties.put(entry.getKey(), value.asText());
+                } else if (value.isNumber()) {
+                    this.properties.put(entry.getKey(), value.asDouble());
+                } else if (value.isBoolean()) {
+                    this.properties.put(entry.getKey(), value.asBoolean());
+                } else {
+                    this.properties.put(entry.getKey(), value.toString());
                 }
-
-                this.identities.put(type, normalizedValue);
             });
+            
         }
     }
     

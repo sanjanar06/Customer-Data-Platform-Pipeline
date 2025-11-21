@@ -7,7 +7,6 @@ from config.constants import (
     EVENT_TYPE_PURCHASE,
 )
 
-
 # Demo event sequence for identity stitching demonstration
 DEMO_EVENTS: List[Dict[str, Any]] = [
     {
@@ -37,7 +36,6 @@ DEMO_EVENTS: List[Dict[str, Any]] = [
     {
         "event_type": EVENT_TYPE_PAGE_VIEW,
         "identities": {
-            "deviceID": "device_abc123",
             "email": "user@example.com"
         },
         "properties": {
@@ -100,6 +98,43 @@ DEMO_EVENTS: List[Dict[str, Any]] = [
         "description": "Event 7: Purchase complete"
     }
 ]
+
+def get_hairball_events():
+    events = []
+    shared_device = "device_HAIRBALL_01"
+    for i in range(1, 11):
+        events.append({
+            "event_type": "login",
+            "identities": {
+                "deviceID": shared_device,
+                "email": f"victim_{i}@bad-merge.com"
+            },
+            "properties": {"risk": "high"},
+            "description": f"Hairball Event {i}"
+        })
+    return events
+
+def get_fuzzy_events():
+    return [
+        {
+            "event_type": "login",
+            "identities": {
+                "deviceID": "device_A",
+                "email": "reuben@gmail.com"  # Correct spelling
+            },
+            "properties": {"method": "password"},
+            "description": "Event 1: Original User (Reuben)"
+        },
+        {
+            "event_type": "page_view",
+            "identities": {
+                "deviceID": "device_B",
+                "email": "reubn@gmail.com"   
+            },
+            "properties": {"page": "/home"},
+            "description": "Event 2: User with Typo (Reubn)"
+        }
+    ]
 
 
 def generate_event_with_timestamp(event_template: Dict[str, Any], sequence: int) -> Dict[str, Any]:

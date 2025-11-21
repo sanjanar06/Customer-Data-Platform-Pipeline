@@ -1,7 +1,7 @@
 import argparse
 from config import settings
 from config.logging_config import setup_logging, get_logger
-from .event_generator import get_demo_events
+from .event_generator import get_demo_events, get_fuzzy_events, get_hairball_events
 from .socket_server import EventSocketServer
 
 # Setup logging
@@ -32,7 +32,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--mode",
-        choices=["demo", "random"],
+        choices=["demo", "random", "hairball", "fuzzy"],
         default="demo",
         help="demo: send CDP event sequence, random: send random data (default: demo)"
     )
@@ -60,6 +60,12 @@ def main() -> None:
     if args.mode == "demo":
         events = get_demo_events()
         server.send_events(events, args.interval, args.loop)
+    elif args.mode == "hairball":
+        events = get_hairball_events()
+        server.send_events(events, args.interval, loop=True)  # Send hairball events continuously
+    elif args.mode == "fuzzy":
+        events = get_fuzzy_events()
+        server.send_events(events, args.interval, loop=False)  # Send fuzzy events continuously
     else:
         server.send_random_events(args.interval)
 
