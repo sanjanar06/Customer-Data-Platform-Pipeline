@@ -1,0 +1,13 @@
+version: 2
+
+sources:
+  - name: raw  # The name used in your SQL models (e.g., {{ source('raw', 'events') }})
+    description: "Raw data sources extracted and loaded into PostgreSQL"
+    database: cdp_analytics
+    schema: public
+    tables:
+      # This simulates the table where all MongoDB profiles would be loaded.
+      # You need a separate script to load data here, but dbt needs the definition.
+      - name: profiles_raw 
+        identifier: profiles_raw # Actual table name in the public schema
+        description: "Raw profile and event history data from MongoDB export."
