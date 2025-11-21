@@ -7,6 +7,8 @@
 4. [Data Flow](#data-flow)
 5. [Technology Stack](#technology-stack)
 6. [Design Decisions](#design-decisions)
+7. [Fuzzy Identity Matching](#fuzzy-identity-matching)
+8. [ELT Pipeline Architecture](#elt-pipeline-architecture)
 
 ---
 
@@ -14,118 +16,187 @@
 
 ### What is a Customer Data Platform (CDP)?
 
-A Customer Data Platform is a packaged software that creates a persistent, unified customer database accessible to other systems. This prototype implements the core CDP capabilities:
+A Customer Data Platform is a packaged software that creates a persistent, unified customer database accessible to other systems. This prototype implements advanced CDP capabilities:
 
-1. **Data Ingestion**: Collect events from multiple sources
-2. **Identity Resolution**: Stitch together customer identities across devices/channels
-3. **Profile Unification**: Create a single view of each customer
-4. **Segmentation**: Compute metrics and segment customers
-5. **Activation**: Use unified profiles for personalization
+1. **Data Ingestion**: Real-time event collection via Apache Flink
+2. **Identity Resolution**: Fuzzy matching algorithms for intelligent stitching
+3. **Profile Unification**: Single customer view across devices/channels
+4. **Analytics Transformation**: SQL-based metric computation with dbt
+5. **Reverse ETL**: Computed metrics synced back to operational store
+6. **Activation**: AI-powered personalization and graph debugging
+7. **Monitoring**: Anomaly detection and graph health diagnostics
 
 ### Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         DATA SOURCES                            │
-│                    (Simulated via producer.py)                  │
-└────────────────────────────┬────────────────────────────────────┘
-                             │ Events via Socket
+┌──────────────────────────────────────────────────────────────────────┐
+│                        DATA SOURCES                                  │
+│                  (Socket Server, Future: Kafka)                      │
+└────────────────────────────┬─────────────────────────────────────────┘
+                             │ Real-time Events (JSON/Socket)
                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    STREAM PROCESSING LAYER                      │
-│                       (Apache Flink)                            │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  SocketStreamJob.java                                    │  │
-│  │  Receives events → ProfileStitcher.java → Processes      │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└────────┬─────────────────────────────────────────┬──────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                  STREAM PROCESSING LAYER                             │
+│                      (Apache Flink 1.18)                             │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │  SocketStreamJob.java                                          │  │
+│  │  │                                                             │  │
+│  │  ├─► CustomerEvent.java (Parse & Normalize)                    │  │
+│  │  │   └─► IdentityNormalizer (email lowercase, phone format)    │  │
+│  │  │                                                             │  │
+│  │  ├─► ProfileStitcher.java (Orchestration)                      │  │
+│  │  │                                                             │  │
+│  │  ├─► Neo4jSink.java (11-step Fuzzy Matching Algorithm)         │  │
+│  │  │   └─► APOC fuzzy text matching                              │  │
+│  │  │                                                             │  │
+│  │  └─► MongoSink.java (Profile Updates)                          │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+└────────┬─────────────────────────────────────────┬───────────────────┘
          │                                         │
-         │ Identity Stitching                      │ Profile Updates
+         │ Graph Updates (CREATE/MERGE)            │ Profile Upserts
          ▼                                         ▼
-┌──────────────────────┐                 ┌──────────────────────┐
-│   IDENTITY GRAPH     │                 │   PROFILE STORE      │
-│      (Neo4j)         │◄────────────────┤     (MongoDB)        │
-│                      │   Queries       │                      │
-│  Manages:            │                 │  Stores:             │
-│  - Profile nodes     │                 │  - Unified profiles  │
-│  - Identity nodes    │                 │  - All identities    │
-│  - Relationships     │                 │  - Event history     │
-│  - Graph traversal   │                 │  - Computed metrics  │
-└──────────────────────┘                 └──────┬───────────────┘
-                                                 │
-                                                 │ Profile Retrieval
-                                                 ▼
-                                        ┌──────────────────────┐
-                                        │   BATCH PROCESSING   │
-                                        │   (batch_job.py)     │
-                                        │                      │
-                                        │  Computes:           │
-                                        │  - LTV               │
-                                        │  - Engagement        │
-                                        │  - Segments          │
-                                        └──────────────────────┘
-                                                 │
-                                                 │ Enriched Profiles
-                                                 ▼
-                                        ┌──────────────────────┐
-                                        │  ACTIVATION LAYER    │
-                                        │ (personalization_    │
-                                        │      api.py)         │
-                                        │                      │
-                                        │  RAG Pattern:        │
-                                        │  1. Retrieve profile │
-                                        │  2. Augment context  │
-                                        │  3. Generate AI      │
-                                        └──────────────────────┘
+┌──────────────────────┐                 ┌──────────────────────────┐
+│   IDENTITY GRAPH     │                 │   PROFILE STORE          │
+│      (Neo4j 5.13     │◄────────────────┤     (MongoDB)            │
+│       + APOC)        │   Graph Queries │                          │
+│                      │                 │  Collections:            │
+│  Schema:             │                 │  - profiles              │
+│  - Profile nodes     │                 │  - event_history         │
+│  - Identity nodes    │                 │  - computed_attributes   │
+│  - HAS_IDENTITY rels │                 │                          │
+│                      │                 │  Features:               │
+│  APOC Functions:     │                 │  - JSONB event arrays    │
+│  - fuzzyMatch()      │                 │  - Nested documents      │
+│  - coll.toSet()      │                 │  - Bulk upserts          │
+│  - coll.sortNodes()  │                 │                          │
+└──────────────────────┘                 └──────┬───────────────────┘
+                                                │
+                      ┌─────────────────────────┴─────────────┐
+                      │  ELT PIPELINE (APScheduler)           │
+                      │  Every 5 minutes                      │
+                      │                                       │
+                      │  ┌──────────────────────────────────┐ │
+                      │  │ 1. Ingestor (MongoDB → Postgres) │ │
+                      │  │    Extract + Load to profiles_raw│ │
+                      │  └──────────────────────────────────┘ │
+                      │                                       │
+                      │  ┌──────────────────────────────────┐ │
+                      │  │ 2. dbt Transform                 │ │
+                      │  │    staging → marts               │ │
+                      │  │    - stg_profiles.sql            │ │
+                      │  │    - mart_computed_attributes    │ │
+                      │  │    - Data quality tests          │ │
+                      │  └──────────────────────────────────┘ │
+                      │                                       |
+                      │  ┌──────────────────────────────────┐ │
+                      │  │ 3. Syncer (Postgres → MongoDB)   │ │
+                      │  │    Reverse ETL bulk updates      │ │
+                      │  └──────────────────────────────────┘ │
+                      └───────────────────────────────────────┘
+                                         │
+                                         ▼
+                              ┌────────────────────┐
+                              │   PostgreSQL 15    │
+                              │  (cdp_analytics)   │
+                              │                    │
+                              │  Tables:           │
+                              │  - profiles_raw    │
+                              │  - stg_profiles    │
+                              │  - mart_computed_  │
+                              │    attributes      │
+                              └────────────────────┘
+                                      │
+          ┌───────────────────────────┴─────────────────────┐
+          │                                                 │
+          ▼                                                 ▼
+┌──────────────────────┐                         ┌──────────────────────────┐                                       
+│   ACTIVATION LAYER   │                         │   DEBUGGING FRONTEND     │
+│   (FastAPI)          │                         │   (Streamlit)            │
+│                      │                         │                          │
+│  Routers:            │                         │  Features:               │
+│  - Personalization   │                         │  - Profile Inspector     │
+│  - Graph Operations  │                         │  - Graph Visualization   │
+│                      │                         │    (streamlit-agraph)    │
+│  Services:           │                         │  - Anomaly Detection     │
+│  - ProfileService    │                         │  - AI Cluster Analysis   │
+│  - GraphService      │                         │  - Graph Surgery Tools   │
+│  - AIService         │                         │  - Health Monitoring     │
+│  - Gemini RAG        │                         │                          │
+└──────────────────────┘                         └──────────────────────────┘
 ```
 
 ---
 
 ## 2. Architecture Patterns
 
-### 2.1 Lambda Architecture (Simplified)
+### 2.1 Lambda Architecture (Enhanced)
 
-This CDP implements a simplified Lambda Architecture:
+This CDP implements an enhanced Lambda Architecture with reverse ETL:
 
-- **Speed Layer (Real-time)**: Flink processes events as they arrive
-- **Batch Layer**: batch_job.py computes aggregate metrics periodically
-- **Serving Layer**: MongoDB serves unified profiles to applications
+- **Speed Layer (Real-time)**: Flink processes events with fuzzy matching
+- **Batch Layer**: dbt computes aggregate metrics in PostgreSQL
+- **Serving Layer**: MongoDB serves unified profiles with computed attributes
+- **Reverse ETL**: Metrics flow back from warehouse to operational store
 
 ### 2.2 Event-Driven Architecture
 
 - Events are the source of truth
-- All state changes are derived from events
-- Event history is preserved for audit and reprocessing
+- All state changes are event-derived
+- Complete audit trail with event history
+- Immutable event log in MongoDB
 
 ### 2.3 Polyglot Persistence
 
-Different databases for different purposes:
+Different databases optimized for different purposes:
 
 | Database | Purpose | Why This DB? |
 |----------|---------|--------------|
-| **Neo4j** | Identity graph | Graph queries for identity resolution, efficient for relationship traversal |
-| **MongoDB** | Profile store | Flexible schema for evolving customer attributes, fast document retrieval |
+| **Neo4j** | Identity graph | Graph algorithms, fuzzy matching with APOC, relationship traversal |
+| **MongoDB** | Profile store | Flexible schema, fast document retrieval, JSONB arrays for events |
+| **PostgreSQL** | Analytics | SQL transformations, ACID compliance, dbt compatibility |
 
 ### 2.4 RAG Pattern (Retrieval-Augmented Generation)
 
 The personalization API uses RAG:
 
-1. **Retrieve**: Fetch customer profile from MongoDB
-2. **Augment**: Build context-rich prompt with profile data
-3. **Generate**: LLM creates personalized content
+1. **Retrieve**: Fetch customer profile from MongoDB (with computed metrics)
+2. **Augment**: Build context-rich prompt with profile data and event history
+3. **Generate**: Gemini LLM creates personalized content
+
+### 2.5 ELT vs ETL
+
+**Traditional ETL**: Transform in Python → Load
+
+**Modern ELT** (this system):
+- **Extract**: MongoDB → PostgreSQL (raw)
+- **Load**: Bulk insert without transformation
+- **Transform**: SQL-based (dbt) in warehouse
+- **Benefits**: Version control, testing, replayability, observability
 
 ---
 
 ## 3. Component Deep Dive
 
-### 3.1 Event Producer (`producer.py`)
+### 3.1 Event Producer (`producer/event_generator.py`)
 
-**Purpose**: Simulate customer events for testing
+**Purpose**: Simulate customer events for testing and development
 
-**Key Features**:
-- Socket server that sends JSON events to Flink
-- Predefined event sequence demonstrating identity stitching
-- Supports both demo mode (realistic sequence) and random mode
+**Three Modes**:
+
+1. **Demo Mode** (default):
+   - Realistic customer journey
+   - Anonymous visit → Login → Multi-device → Purchase
+   - Sequential events demonstrating identity stitching
+
+2. **Fuzzy Mode** (`--mode fuzzy`):
+   - Tests fuzzy matching algorithms
+   - Generates similar but not identical identities
+   - Examples: `john.doe@gmail.com` vs `johndoe@gmail.com`
+
+3. **Hairball Mode** (`simulate_hairball.py`):
+   - Stress testing for anomaly detection
+   - 10 different users from same device
+   - Simulates library kiosk or shared computer scenario
 
 **Event Schema**:
 ```json
@@ -133,12 +204,14 @@ The personalization API uses RAG:
   "event_type": "page_view | login | add_to_cart | purchase",
   "identities": {
     "deviceID": "device_abc123",
-    "email": "user@example.com"
+    "email": "user@example.com",
+    "phone": "+1-555-123-4567"
   },
   "properties": {
     "page": "/products/laptop",
     "product_name": "MacBook Pro",
-    "price": 1299.99
+    "price": 1299.99,
+    "category": "Electronics"
   },
   "timestamp": 1234567890,
   "sequence": 1
@@ -147,8 +220,37 @@ The personalization API uses RAG:
 
 **Why Socket Connection?**
 - Simple for prototyping
-- In production, would use Kafka, Kinesis, or Pub/Sub
+- Demonstrates concept without Kafka complexity
 - Flink has native socket source connector
+- In production: Replace with Kafka, Kinesis, or Pub/Sub
+
+---
+
+### 3.2 Stream Processing Layer (Flink Jobs)
+
+#### CustomerEvent.java - Identity Normalization
+
+**Purpose**: Parse events and normalize identities before processing
+
+**Key Features**:
+- **Identity Normalization**: Uses `IdentityNormalizer` utility
+  - Emails: Lowercase and trim
+  - Phones: Strip non-numeric characters, format consistently
+- **Property Type Detection**: Handles string, number, boolean values
+- **Moved Responsibility**: Normalization happens at parse time (not in stitcher)
+
+**Code Pattern**:
+```java
+// Normalize identities during parsing
+for (Map.Entry<String, Object> entry : identities.entrySet()) {
+    String type = entry.getKey();
+    String value = entry.getValue().toString();
+    
+    // Normalize based on type
+    String normalized = IdentityNormalizer.normalize(type, value);
+    normalizedIdentities.put(type, normalized);
+}
+```
 
 ---
 
@@ -484,25 +586,58 @@ Result: Single unified profile with all identities!
 
 ---
 
-### 4.2 Batch Processing Flow
+### 4.2 ELT Pipeline Flow (Scheduled Every 5 Minutes)
 
 ```
-Nightly Job Triggers
+APScheduler Triggers
   │
-  ├─► Connect to MongoDB
-  ├─► Fetch all profiles
-  │
-  ├─► For each profile:
+  ├─► 1. EXTRACT & LOAD (Ingestor.py)
   │   │
-  │   ├─► Compute LTV from purchase events
-  │   ├─► Compute engagement score
-  │   ├─► Compute time metrics
-  │   ├─► Compute product metrics
-  │   │
-  │   └─► Update profile with computed_attributes
+  │   ├─► Connect to MongoDB
+  │   ├─► Fetch all profiles
+  │   ├─► Drop PostgreSQL profiles_raw table
+  │   ├─► Recreate table schema
+  │   └─► Bulk insert profiles as JSONB
   │
-  └─► Job complete
+  ├─► 2. TRANSFORM (dbt)
+  │   │
+  │   ├─► dbt run
+  │   │   │
+  │   │   ├─► stg_profiles.sql
+  │   │   │   ├─► Parse JSONB event arrays
+  │   │   │   ├─► Unnest to relational format
+  │   │   │   └─► Clean and type-cast columns
+  │   │   │
+  │   │   └─► mart_computed_attributes.sql
+  │   │       ├─► Calculate LTV (SUM purchase totals)
+  │   │       ├─► Engagement Score (4 components):
+  │   │       │   ├─► Event activity (max 40 pts)
+  │   │       │   ├─► Purchase behavior (max 30 pts)
+  │   │       │   ├─► Recency (max 20 pts)
+  │   │       │   └─► Diversity (max 10 pts)
+  │   │       ├─► Time metrics (days since first/last)
+  │   │       └─► Product metrics (counts)
+  │   │
+  │   └─► dbt test (data quality validation)
+  │
+  ├─► 3. REVERSE ETL (Syncer.py)
+  │   │
+  │   ├─► Query mart_computed_attributes
+  │   ├─► For each profile:
+  │   │   └─► MongoDB UpdateOne:
+  │   │       "$set": {
+  │   │         "computed_attributes": { LTV, engagement, metrics }
+  │   │       }
+  │   └─► Bulk execute updates
+  │
+  └─► Job Complete → Wait 5 minutes → Repeat
 ```
+
+**Why This Pattern?**
+- **Separation of Concerns**: Extraction logic separate from transformation
+- **SQL for Metrics**: More declarative, testable, and maintainable than Python
+- **Reverse ETL**: Operational store (MongoDB) gets enriched data from warehouse
+- **Scheduling**: Automated with APScheduler, graceful shutdown on SIGINT/SIGTERM
 
 ---
 
@@ -512,18 +647,329 @@ Nightly Job Triggers
 User Request: GET /personalize/profile_123
   │
   ├─► Fetch profile from MongoDB
-  │   └─► Includes: identities, LTV, engagement, events, products
+  │   └─► Includes: identities, LTV, engagement, events, products, computed_attributes
   │
   ├─► Build prompt with customer context:
   │   "Customer has $1200 LTV, viewed laptops, engaged score 85..."
   │
-  ├─► Call Gemini API
+  ├─► Call Gemini API (gemini-1.5-flash)
   │   └─► LLM generates personalized offer based on context
   │
   ├─► Parse JSON response
   │
   └─► Return to client
 ```
+
+---
+
+### 4.4 Graph Debugging Flow
+
+```
+Frontend Request: Inspect profile_123
+  │
+  ├─► GET /api/graph/cluster/profile_123
+  │   │
+  │   ├─► Neo4j Query:
+  │   │   MATCH (p:Profile {master_profile_id: "profile_123"})
+  │   │         -[:HAS_IDENTITY]->(i:Identity)
+  │   │   RETURN p, i
+  │   │
+  │   └─► Return nodes + edges for visualization
+  │
+  ├─► GET /api/graph/explain/profile_123
+  │   │
+  │   ├─► Calculate ratios: email_count / device_count
+  │   ├─► Send to Gemini AI with context
+  │   └─► Return classification:
+  │       ├─► single_user: Normal
+  │       ├─► household: Normal (family)
+  │       ├─► shared_device: Investigate
+  │       └─► data_quality_issue: Fix needed
+  │
+  └─► Render in streamlit-agraph with color-coding
+```
+
+---
+
+## 7. Fuzzy Identity Matching
+
+### The Problem
+
+Traditional identity resolution uses **exact matching**:
+```
+"john.doe@gmail.com" == "john.doe@gmail.com"  ✅
+"john.doe@gmail.com" == "johndoe@gmail.com"   ❌
+```
+
+But real-world data has:
+- **Typos**: `johndoe@gmial.com` vs `johndoe@gmail.com`
+- **Format variations**: `(555) 123-4567` vs `555-123-4567`
+- **Case differences**: `John.Doe@gmail.com` vs `john.doe@gmail.com`
+
+### The Solution: APOC Fuzzy Matching
+
+**Neo4jSink.java** implements an 11-step Cypher query with fuzzy matching:
+
+```cypher
+// Step 1: Find existing identities (exact match)
+UNWIND $identities AS identity_map
+MATCH (single_identity:Identity {type: identity_map.type, value: identity_map.value})
+
+// Step 2: Find profiles via existing identities
+OPTIONAL MATCH (single_identity)<-[:HAS_IDENTITY]-(exact_p:Profile)
+
+// Step 3: FUZZY MATCH using APOC 🔍
+OPTIONAL MATCH (other:Identity)
+WHERE other.type = single_identity.type
+  AND other <> single_identity
+  AND apoc.text.fuzzyMatch(other.value, single_identity.value)
+OPTIONAL MATCH (other)<-[:HAS_IDENTITY]-(fuzzy_p:Profile)
+
+// Step 4: Collect all matching profiles
+WITH identity_map, exact_p, collect(DISTINCT fuzzy_p) AS fuzzy_matches
+
+// Step 5: Combine exact + fuzzy matches
+WITH identity_map, 
+     CASE WHEN exact_p IS NOT NULL 
+          THEN [exact_p] + fuzzy_matches 
+          ELSE fuzzy_matches 
+     END AS all_matches
+     
+// Step 6: Deduplicate with APOC
+WITH identity_map, apoc.coll.toSet(all_matches) AS unique_profiles
+
+// Step 7: Sort by creation time (oldest profile wins)
+WITH identity_map, apoc.coll.sortNodes(unique_profiles, 'created_at') AS sorted_profiles
+
+// Steps 8-11: Merge/create profiles, link identities, return master_profile_id
+```
+
+### Fuzzy Matching Algorithm
+
+**APOC `fuzzyMatch()` Function**:
+- **Algorithm**: Levenshtein distance or similar
+- **Returns**: Boolean (true if strings are "similar enough")
+- **Use Cases**:
+  - Email typos: `gmail.com` vs `gmial.com`
+  - Phone formatting: `+1-555-123-4567` vs `15551234567`
+  - Case variations: `JohnDoe` vs `johndoe`
+
+**Example Matches**:
+```
+apoc.text.fuzzyMatch("john.doe@gmail.com", "johndoe@gmail.com") → true
+apoc.text.fuzzyMatch("555-123-4567", "(555) 123-4567") → true  // After normalization
+apoc.text.fuzzyMatch("totally@different.com", "other@email.com") → false
+```
+
+### Normalization + Fuzzy Matching
+
+**Two-Layer Approach**:
+
+1. **Normalization** (IdentityNormalizer.java):
+   ```java
+   // Before fuzzy matching
+   email = email.toLowerCase().trim();
+   phone = phone.replaceAll("[^0-9]", "");  // Remove formatting
+   ```
+
+2. **Fuzzy Matching** (Neo4jSink with APOC):
+   - Even after normalization, catches typos and variations
+   - More forgiving than exact match
+   - Prevents duplicate profiles from minor differences
+
+---
+
+## 8. ELT Pipeline Architecture
+
+**DBT Approach**:
+- ✅ SQL-based transformations (declarative)
+- ✅ Version controlled in Git
+- ✅ Built-in testing framework
+- ✅ Lineage and documentation
+
+### dbt Project Structure
+
+```
+analytics/cdp_dbt_project/
+├── dbt_project.yml          # Project config
+├── packages.yml             # dbt-utils dependency
+│
+├── models/
+│   ├── staging/
+│   │   ├── sources.yml      # Source table definitions
+│   │   └── stg_profiles.sql # Clean + structure raw data
+│   │
+│   └── marts/
+│       ├── schema.yml       # Tests + documentation
+│       └── mart_computed_attributes.sql  # Final metrics
+│
+└── tests/                   # Custom SQL tests
+```
+
+### Engagement Score Calculation
+
+**SQL Logic** (mart_computed_attributes.sql):
+```sql
+LEAST(total_events * 5, 40) +  -- Event activity (max 40)
+
+(CASE 
+  WHEN lifetime_value > 1000 THEN 30 
+  WHEN lifetime_value > 0 THEN 15 
+  ELSE 0 
+END) +  -- Purchase behavior (max 30)
+
+(CASE 
+  WHEN days_since_last < 1 THEN 20
+  WHEN days_since_last < 7 THEN 10
+  WHEN days_since_last < 30 THEN 5 
+  ELSE 0 
+END) +  -- Recency (max 20)
+
+LEAST(unique_event_types * 2, 10) AS engagement_score  -- Diversity (max 10)
+```
+
+**Data Quality Test** (schema.yml):
+```yaml
+tests:
+  - dbt_utils.expression_is_true:
+      expression: ">= 0 and engagement_score <= 100"
+```
+
+### Benefits of ELT Approach
+
+1. **Observability**: dbt logs show what transformed
+2. **Testing**: Automated data quality checks
+3. **Documentation**: Schema.yml generates docs site
+4. **Modularity**: Staging → Marts separation
+5. **Replayability**: Rerun transformations anytime
+6. **Team Collaboration**: SQL is more accessible than Python for analysts
+
+---
+
+## 9. Technology Stack
+
+### Why These Technologies?
+
+| Technology | Purpose | Why Chosen |
+|------------|---------|------------|
+| **Apache Flink 1.18** | Stream processing | Exactly-once semantics, stateful processing, mature Java ecosystem |
+| **Neo4j 5.13 + APOC** | Identity graph | Native graph DB, Cypher expressiveness, APOC fuzzy matching algorithms |
+| **MongoDB** | Profile store | Flexible schema, JSONB arrays, fast document lookups, horizontal scaling |
+| **PostgreSQL 15** | Analytics warehouse | SQL standard, ACID compliance, dbt ecosystem, reliable aggregations |
+| **dbt 1.7** | Data transformation | SQL-based, version control friendly, testing framework, documentation |
+| **APScheduler 3.10** | Job scheduling | Python-native, cron-like scheduling, graceful shutdown, simple API |
+| **Docker Compose** | Orchestration | Multi-container setup, reproducible environments, easy local development |
+| **FastAPI** | API framework | Modern Python, async support, automatic OpenAPI docs, type validation |
+| **Google Gemini 1.5 Flash** | LLM | Fast inference, multimodal, good JSON structure following, free tier |
+| **Streamlit** | Frontend | Rapid prototyping, Python-native, interactive widgets, agraph integration |
+| **Python 3.13 / Java 17** | Languages | Latest features, async support (Python), modern Java syntax |
+
+---
+
+## 10. Data Consistency
+
+### Consistency Model
+
+**Neo4j ↔ MongoDB**:
+- Eventually consistent
+- Neo4j writes happen first (source of truth for identities)
+- MongoDB updates follow (sync identities from graph)
+- Cleanup jobs reconcile orphaned documents
+
+**PostgreSQL ↔ MongoDB**:
+- Batch reconciliation every 5 minutes
+- PostgreSQL is read-only (no writes from API)
+- MongoDB is operational store (serves API requests)
+- Reverse ETL pattern: warehouse enriches operational data
+
+### Conflict Resolution
+
+**Identity Conflicts**:
+- Neo4j graph merge determines winning profile (oldest created_at)
+- MongoDB orphaned profiles deleted
+- All identities consolidated under master_profile_id
+
+**Metric Conflicts**:
+- Batch job is authoritative (dbt-calculated metrics)
+- MongoDB computed_attributes overwritten on each sync
+- No concurrent writes to metrics (batch job has exclusive access)
+
+---
+
+## 11. Design Decisions
+
+### Why Neo4j for Identity Resolution?
+
+**Alternatives Considered**:
+- Relational DB with self-joins: ❌ Complex queries, poor performance
+- Document DB with embedded arrays: ❌ No traversal capabilities
+- Dedicated ID resolution service: ❌ Overkill for prototype
+
+**Neo4j Wins Because**:
+- Graph queries are natural for "find connected identities"
+- APOC provides fuzzy matching out-of-the-box
+- Cypher is expressive and readable
+- Performance scales with graph size
+
+### Why ELT Instead of ETL?
+
+**Decision**: Transform in warehouse (dbt) instead of Python
+
+**Rationale**:
+- SQL is declarative (what, not how)
+- Data stays in warehouse longer (easier debugging)
+- dbt provides testing/docs/lineage
+- Analysts can contribute (SQL > Python for many teams)
+
+### Why Reverse ETL?
+
+**Decision**: Sync computed metrics back to MongoDB
+
+**Rationale**:
+- API needs fast reads (MongoDB is faster than PostgreSQL for key-value)
+- Separation of OLTP (MongoDB) and OLAP (PostgreSQL)
+- Batch job owns metric computation
+- Operational store serves real-time requests
+
+### Why APScheduler Over Airflow?
+
+**Decision**: Simple scheduling with APScheduler
+
+**Rationale**:
+- Lightweight (no separate infrastructure)
+- Python-native (easy to integrate)
+- Good enough for single-machine deployment
+- Future: Scale to Airflow/Prefect if needed
+
+---
+
+## 12. Future Enhancements
+
+**Stream Processing**:
+- [ ] Kafka integration (replace socket)
+- [ ] Multiple Flink jobs for different event types
+- [ ] Checkpointing and state recovery
+
+**Identity Resolution**:
+- [ ] ML-based fuzzy matching (train on labeled data)
+- [ ] Configurable similarity thresholds
+- [ ] Identity scoring (confidence levels)
+
+**Analytics**:
+- [ ] Real-time aggregations (Flink state)
+- [ ] Predictive models (churn, LTV forecast)
+- [ ] Time-series databases (InfluxDB, TimescaleDB)
+
+**Activation**:
+- [ ] Multi-channel personalization (email, push, SMS)
+- [ ] A/B testing framework
+- [ ] Campaign orchestration
+
+**Governance**:
+- [ ] GDPR compliance (right to be forgotten)
+- [ ] Audit logs for all identity changes
+- [ ] Data lineage visualization
+- [ ] Access control and encryption
 
 ---
 
