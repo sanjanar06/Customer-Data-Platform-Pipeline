@@ -46,15 +46,21 @@ services:
 
   # Flink JobManager
   flink-jobmanager:
-    image: flink:1.18-scala_2.12-java17
+    build:
+      context: .
+      dockerfile: Dockerfile.flink
     container_name: cdp-flink-jobmanager
     ports:
       - "8081:8081"  # Web UI
+      - "9249:9249"  # Prometheus metrics
     command: jobmanager
     environment:
       FLINK_PROPERTIES: |
         jobmanager.rpc.address: flink-jobmanager
         parallelism.default: 2
+        metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+        metrics.reporter.prom.port: 9249
+        metrics.latency.interval: 50000
     volumes:
       - flink_jobs:/opt/flink/usrlib
     networks:
@@ -62,15 +68,22 @@ services:
 
   # Flink TaskManager
   flink-taskmanager:
-    image: flink:1.18-scala_2.12-java17
+    build:
+      context: .
+      dockerfile: Dockerfile.flink
     container_name: cdp-flink-taskmanager
     depends_on:
       - flink-jobmanager
+    ports:
+      - "9250:9249"  # Prometheus metrics (different host port)
     command: taskmanager
     environment:
       FLINK_PROPERTIES: |
         jobmanager.rpc.address: flink-jobmanager
         taskmanager.numberOfTaskSlots: 2
+        metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+        metrics.reporter.prom.port: 9249
+        metrics.latency.interval: 50000
     networks:
       - cdp-network
       
@@ -93,6 +106,86 @@ services:
       timeout: 5s
       retries: 5
 
+  # Zookeeper (Required for Kafka)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: cdp-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - cdp-network
+
+  # Kafka Broker
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: cdp-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - cdp-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Kafka Topic Creator (Runs once to create topics)
+  init-kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: [ '/bin/sh', '-c' ]
+    command: |
+      "
+      # Block until kafka is reachable
+      kafka-topics --bootstrap-server kafka:9092 --list
+      
+      echo -e 'Creating kafka topics'
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic cdp.events --replication-factor 1 --partitions 2
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic cdp.merged-profiles --replication-factor 1 --partitions 2
+      
+      echo -e 'Successfully created the following topics:'
+      kafka-topics --bootstrap-server kafka:9092 --list
+      "
+    networks:
+      - cdp-network
+
+  # Prometheus (Metrics Database)
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: cdp-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - cdp-network
+
+  # Grafana (Visual Dashboard)
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: cdp-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=password123
+    networks:
+      - cdp-network
+    depends_on:
+      - prometheus
+      
 networks:
   cdp-network:
     driver: bridge

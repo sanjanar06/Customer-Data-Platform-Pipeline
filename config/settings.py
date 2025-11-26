@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     BATCH_PROFILE_LIMIT: Optional[int] = None  # None = process all
     BATCH_CHUNK_SIZE: int = 100
     BATCH_INTERVAL_MINUTES: int = 5  # Run batch job every N minutes
+
+    KAFKA_TOPIC: str = "cdp.events"
+    KAFKA_BROKER: str = "localhost:29092"  # External port for host machine
     
     class Config:
         """Pydantic configuration."""

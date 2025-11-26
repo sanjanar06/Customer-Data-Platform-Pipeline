@@ -3,8 +3,8 @@ pymongo==4.6.1
 neo4j==5.14.1
 psycopg2-binary>=2.9.10  # Updated for Python 3.13 compatibility
 
-# PyFlink 
-# apache-flink==1.18.0  # Commented out: requires Python <3.11. Install separately when needed with Python 3.11/3.12
+# Messaging
+confluent-kafka==2.3.0
 
 # API Framework
 fastapi==0.104.1
@@ -16,7 +16,7 @@ google-generativeai==0.3.1
 # DBT
 dbt-core==1.7.0 
 dbt-postgres==1.7.0
-protobuf>=5.28.2  # Fix for Python 3.13 compatibility with dbt 
+protobuf>=4.0.0,<5  
 
 # Configuration Management
 pydantic>=2.9.0  # Updated for Python 3.13 compatibility

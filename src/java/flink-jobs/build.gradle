@@ -34,6 +34,12 @@ dependencies {
     // Apache Flink (provided by cluster, not bundled in JAR)
     compileOnly 'org.apache.flink:flink-streaming-java:1.18.0'
     compileOnly 'org.apache.flink:flink-clients:1.18.0'
+
+    // Flink Kafka Connector (must be included in JAR)
+    implementation 'org.apache.flink:flink-connector-kafka:3.0.1-1.18'
+    
+    // Kafka clients (required by Kafka connector)
+    implementation 'org.apache.kafka:kafka-clients:3.4.0'
     
     // Logging
     implementation 'org.slf4j:slf4j-api:2.0.9'
@@ -52,12 +58,16 @@ shadowJar {
     
     // Set main class for job execution
     manifest {
-        attributes 'Main-Class': 'com.cdp.jobs.SocketStreamJob'
+        attributes 'Main-Class': 'com.cdp.jobs.CdpStreamingJob'
     }
     
-    // Exclude Flink dependencies (provided by cluster)
+    // Exclude Flink core dependencies (provided by cluster)
+    // but include connectors and other libraries
     dependencies {
-        exclude(dependency('org.apache.flink:.*'))
+        exclude(dependency('org.apache.flink:flink-streaming-java'))
+        exclude(dependency('org.apache.flink:flink-clients'))
+        exclude(dependency('org.apache.flink:flink-runtime'))
+        exclude(dependency('org.apache.flink:flink-core'))
     }
     
     // Relocate dependencies to avoid conflicts

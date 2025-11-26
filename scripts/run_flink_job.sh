@@ -4,18 +4,12 @@
 set -e
 
 # Configuration
-FLINK_CLASS="${FLINK_CLASS:-com.cdp.jobs.SocketStreamJob}"
-SOCKET_HOST="${SOCKET_HOST:-jobmanager}"
-SOCKET_PORT="${SOCKET_PORT:-9001}"
+FLINK_CLASS="${FLINK_CLASS:-com.cdp.jobs.CdpStreamingJob}"
 
 echo "=========================================="
 echo "Building and Submitting Flink Job"
 echo "=========================================="
 echo "Class: $FLINK_CLASS"
-if [ "$FLINK_CLASS" = "com.cdp.jobs.SocketStreamJob" ]; then
-    echo "Socket: $SOCKET_HOST:$SOCKET_PORT"
-fi
-echo ""
 
 # Navigate to Flink jobs directory
 cd "$(dirname "$0")/../src/java/flink-jobs"

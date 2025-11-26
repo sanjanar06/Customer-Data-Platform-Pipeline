@@ -7,7 +7,6 @@ public class ConfigManager {
     
     private static final Map<String, String> CONFIG = new HashMap<>();
     
-    // Configuration keys
     public static final String MONGO_URI = "MONGO_URI";
     public static final String MONGO_DB = "MONGO_DB";
     public static final String NEO4J_URI = "NEO4J_URI";
@@ -15,16 +14,19 @@ public class ConfigManager {
     public static final String NEO4J_PASS = "NEO4J_PASS";
     public static final String SOCKET_HOST = "SOCKET_HOST";
     public static final String SOCKET_PORT = "SOCKET_PORT";
+    public static final String KAFKA_BROKER = "KAFKA_BROKER";
+    public static final String KAFKA_TOPIC = "KAFKA_TOPIC";
+    public static final String KAFKA_GROUP_ID = "KAFKA_GROUP_ID";
     
     static {
-        // Load configuration from environment variables with defaults
         CONFIG.put(MONGO_URI, getEnv(MONGO_URI, "mongodb://admin:password123@mongodb:27017"));
         CONFIG.put(MONGO_DB, getEnv(MONGO_DB, "cdp"));
         CONFIG.put(NEO4J_URI, getEnv(NEO4J_URI, "bolt://neo4j:7687"));
         CONFIG.put(NEO4J_USER, getEnv(NEO4J_USER, "neo4j"));
         CONFIG.put(NEO4J_PASS, getEnv(NEO4J_PASS, "password123"));
-        CONFIG.put(SOCKET_HOST, getEnv(SOCKET_HOST, "host.docker.internal"));
-        CONFIG.put(SOCKET_PORT, getEnv(SOCKET_PORT, "9001"));
+        CONFIG.put(KAFKA_BROKER, getEnv(KAFKA_BROKER, "kafka:9092"));
+        CONFIG.put(KAFKA_TOPIC, getEnv(KAFKA_TOPIC, "cdp.events"));
+        CONFIG.put(KAFKA_GROUP_ID, getEnv(KAFKA_GROUP_ID, "cdp-flink-group"));
     }
     
     public static String get(String key) {
