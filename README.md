@@ -16,61 +16,31 @@ This **Customer Data Platform (CDP) Prototype** combines:
 
 ## 🏗️ Architecture Overview
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                     DATA SOURCES                             │
-│              (Socket Server, Future: Kafka)                  │
-└────────────────────────┬─────────────────────────────────────┘
-                         │ Real-time Events
-                         ▼
-┌──────────────────────────────────────────────────────────────┐
-│           STREAM PROCESSING (Apache Flink)                   │
-│  - Identity Normalization (email/phone)                      │
-│  - Fuzzy Matching (APOC fuzzy text matching)                 │
-│  - Profile Stitching & Graph Updates                         │
-└─────────┬────────────────────────────────────┬───────────────┘
-          │                                    │
-          │ Neo4j Updates                      │ Profile Updates
-          ▼                                    ▼
-┌──────────────────────┐           ┌──────────────────────────┐
-│   IDENTITY GRAPH     │           │   PROFILE STORE          │
-│      (Neo4j)         │           │     (MongoDB)            │
-│                      │           │                          │
-│  - Profile nodes     │           │  - Unified profiles      │
-│  - Identity nodes    │           │  - Event history         │
-│  - Fuzzy matching    │           │  - Raw attributes        │
-│  - APOC algorithms   │           │                          │
-└──────────────────────┘           └────────┬─────────────────┘
-                                            │
-                                            │ ELT Pipeline (Scheduled)
-                                            ▼
-                    ┌────────────────────────────────────────┐
-                    │   ANALYTICS WAREHOUSE (PostgreSQL)     │
-                    │                                        │
-                    │  MongoDB → profiles_raw → dbt          │
-                    │  ├── Staging: stg_profiles             │
-                    │  └── Marts: mart_computed_attributes   │
-                    └────────┬───────────────────────────────┘
-                             │ Reverse ETL (Computed Metrics)
-                             ▼
-                    ┌────────────────────┐
-                    │    MongoDB         │
-                    │  (computed_        │
-                    │   attributes)      │
-                    └────────────────────┘
-                             │
-          ┌──────────────────┴──────────────────┐
-          │                                     │
-          ▼                                     ▼
-┌──────────────────────┐           ┌──────────────────────────┐
-│   ACTIVATION LAYER   │           │   DEBUGGING FRONTEND     │
-│   (FastAPI)          │           │   (Streamlit)            │
-│                      │           │                          │
-│  - Personalization   │           │  - Graph visualization   │
-│  - Graph operations  │           │  - Anomaly detection     │
-│  - AI diagnostics    │           │  - Graph surgery tools   │
-│  - Anomaly detection │           │  - AI cluster analysis   │
-└──────────────────────┘           └──────────────────────────┘
+```mermaid
+graph TD
+    subgraph Data Sources
+    A[Event Producer] -->|JSON| B(Kafka: cdp.events)
+    end
+
+    subgraph Streaming Layer
+    B -->|Consume| C{Apache Flink}
+    C -->|Normalize| C1[Identity Normalization]
+    C1 -->|Fuzzy Match| C2[Neo4j Identity Stitching]
+    C2 -->|Update| D[(Neo4j Graph)]
+    C2 -->|Upsert| E[(MongoDB Profile Store)]
+    end
+
+    subgraph Analytics Layer
+    E -->|Extract| F[PostgreSQL Raw]
+    F -->|dbt Transform| G[PostgreSQL Marts]
+    G -->|Reverse ETL| E
+    end
+
+    subgraph Activation Layer
+    E -->|Fetch Profile| H[FastAPI]
+    H -->|Prompt| I[Gemini AI]
+    I -->|Personalization| H
+    end
 ```
 
 ---

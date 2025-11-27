@@ -8,8 +8,34 @@ from config.constants import (
     EVENT_TYPE_PURCHASE,
 )
 
-# Demo event sequence for identity stitching demonstration
-DEMO_EVENTS: List[Dict[str, Any]] = [
+def get_fuzzy_events():
+    """
+    This function is just to demonstrate fuzzy matching with two events.
+    One event has the correct email, the other has a typo.  
+    """
+    return [
+        {
+            "event_type": "login",
+            "identities": {
+                "deviceID": "device_A",
+                "email": "reuben@gmail.com"  # Correct spelling
+            },
+            "properties": {"method": "password"},
+            "description": "Event 1: Original User (Reuben)"
+        },
+        {
+            "event_type": "page_view",
+            "identities": {
+                "deviceID": "device_B",
+                "email": "reubn@gmail.com"   
+            },
+            "properties": {"page": "/home"},
+            "description": "Event 2: User with Typo (Reubn)"
+        }
+    ]
+
+def get_demo_events() -> List[Dict[str, Any]]:
+    return [
     {
         "event_type": EVENT_TYPE_PAGE_VIEW,
         "identities": {
@@ -100,42 +126,6 @@ DEMO_EVENTS: List[Dict[str, Any]] = [
     }
 ]
 
-
-def get_fuzzy_events():
-    return [
-        {
-            "event_type": "login",
-            "identities": {
-                "deviceID": "device_A",
-                "email": "reuben@gmail.com"  # Correct spelling
-            },
-            "properties": {"method": "password"},
-            "description": "Event 1: Original User (Reuben)"
-        },
-        {
-            "event_type": "page_view",
-            "identities": {
-                "deviceID": "device_B",
-                "email": "reubn@gmail.com"   
-            },
-            "properties": {"page": "/home"},
-            "description": "Event 2: User with Typo (Reubn)"
-        }
-    ]
-
-
-def generate_event_with_timestamp(event_template: Dict[str, Any], sequence: int) -> Dict[str, Any]:
-    event = event_template.copy()
-    event["timestamp"] = int(time.time())
-    event["sequence"] = sequence
-    # Remove description (only for console output)
-    event.pop("description", None)
-    return event
-
-
-def get_demo_events() -> List[Dict[str, Any]]:
-    return DEMO_EVENTS
-
 def introduce_typo(email: str) -> str:
     """
     Deliberately introduces a typo into an email address 
@@ -181,8 +171,6 @@ def get_large_scale_events(num_profiles=20) -> List[Dict[str, Any]]:
         {"id": "P3", "name": "Mechanical Keyboard", "price": 149.50},
         {"id": "P4", "name": "4K Monitor", "price": 399.99}
     ]
-
-    print(f"⚡ Generating synthetic data for {num_profiles} unique personas...")
 
     for i in range(num_profiles):
         # 1. Create a Persona
@@ -243,10 +231,8 @@ def get_large_scale_events(num_profiles=20) -> List[Dict[str, Any]]:
                 "description": f"User {i}: Purchased {prod['name']}"
             })
 
-    # Sort all events by timestamp so they interleave naturally
     events.sort(key=lambda x: x["timestamp"])
     
-    # Re-assign sequence numbers
     for idx, event in enumerate(events, 1):
         event["sequence"] = idx
         

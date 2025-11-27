@@ -28,104 +28,40 @@ A Customer Data Platform is a packaged software that creates a persistent, unifi
 
 ### Architecture Overview
 
+```text
+┌──────────────────────────────────────────────────────────────┐
+│                     DATA SOURCES                             │
+│              (Python Producer / External APIs)               │
+└────────────────────────┬─────────────────────────────────────┘
+                         │
+                         ▼
+┌──────────────────────────────────────────────────────────────┐
+│                    MESSAGE BUS (Kafka)                       │
+│  Topic: cdp.events (Partitioned)                             │
+└────────────────────────┬─────────────────────────────────────┘
+                         │
+                         ▼
+┌──────────────────────────────────────────────────────────────┐
+│           STREAM PROCESSING (Apache Flink)                   │
+│  - Source: KafkaSource (Group: cdp-flink-group)              │
+│  - Logic: Fuzzy Matching & Profile Stitching                 │
+│  - State: Checkpointing enabled                              │
+└─────────┬────────────────────────────────────┬───────────────┘
+          │                                    │
+          │ Neo4j Updates                      │ Profile Updates
+          ▼                                    ▼
+┌──────────────────────┐           ┌──────────────────────────┐
+│   IDENTITY GRAPH     │           │   PROFILE STORE          │
+│      (Neo4j)         │           │     (MongoDB)            │
+└──────────────────────┘           └────────┬─────────────────┘
+                                            │
+                                            │ ELT Pipeline
+                                            ▼
+                    ┌────────────────────────────────────────┐
+                    │   ANALYTICS WAREHOUSE (PostgreSQL)     │
+                    │  dbt models: LTV, Engagement, Churn    │
+                    └────────────────────────────────────────┘
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│                        DATA SOURCES                                  │
-│                  (Socket Server, Future: Kafka)                      │
-└────────────────────────────┬─────────────────────────────────────────┘
-                             │ Real-time Events (JSON/Socket)
-                             ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│                  STREAM PROCESSING LAYER                             │
-│                      (Apache Flink 1.18)                             │
-│  ┌────────────────────────────────────────────────────────────────┐  │
-│  │  SocketStreamJob.java                                          │  │
-│  │  │                                                             │  │
-│  │  ├─► CustomerEvent.java (Parse & Normalize)                    │  │
-│  │  │   └─► IdentityNormalizer (email lowercase, phone format)    │  │
-│  │  │                                                             │  │
-│  │  ├─► ProfileStitcher.java (Orchestration)                      │  │
-│  │  │                                                             │  │
-│  │  ├─► Neo4jSink.java (11-step Fuzzy Matching Algorithm)         │  │
-│  │  │   └─► APOC fuzzy text matching                              │  │
-│  │  │                                                             │  │
-│  │  └─► MongoSink.java (Profile Updates)                          │  │
-│  └────────────────────────────────────────────────────────────────┘  │
-└────────┬─────────────────────────────────────────┬───────────────────┘
-         │                                         │
-         │ Graph Updates (CREATE/MERGE)            │ Profile Upserts
-         ▼                                         ▼
-┌──────────────────────┐                 ┌──────────────────────────┐
-│   IDENTITY GRAPH     │                 │   PROFILE STORE          │
-│      (Neo4j 5.13     │◄────────────────┤     (MongoDB)            │
-│       + APOC)        │   Graph Queries │                          │
-│                      │                 │  Collections:            │
-│  Schema:             │                 │  - profiles              │
-│  - Profile nodes     │                 │  - event_history         │
-│  - Identity nodes    │                 │  - computed_attributes   │
-│  - HAS_IDENTITY rels │                 │                          │
-│                      │                 │  Features:               │
-│  APOC Functions:     │                 │  - JSONB event arrays    │
-│  - fuzzyMatch()      │                 │  - Nested documents      │
-│  - coll.toSet()      │                 │  - Bulk upserts          │
-│  - coll.sortNodes()  │                 │                          │
-└──────────────────────┘                 └──────┬───────────────────┘
-                                                │
-                      ┌─────────────────────────┴─────────────┐
-                      │  ELT PIPELINE (APScheduler)           │
-                      │  Every 5 minutes                      │
-                      │                                       │
-                      │  ┌──────────────────────────────────┐ │
-                      │  │ 1. Ingestor (MongoDB → Postgres) │ │
-                      │  │    Extract + Load to profiles_raw│ │
-                      │  └──────────────────────────────────┘ │
-                      │                                       │
-                      │  ┌──────────────────────────────────┐ │
-                      │  │ 2. dbt Transform                 │ │
-                      │  │    staging → marts               │ │
-                      │  │    - stg_profiles.sql            │ │
-                      │  │    - mart_computed_attributes    │ │
-                      │  │    - Data quality tests          │ │
-                      │  └──────────────────────────────────┘ │
-                      │                                       |
-                      │  ┌──────────────────────────────────┐ │
-                      │  │ 3. Syncer (Postgres → MongoDB)   │ │
-                      │  │    Reverse ETL bulk updates      │ │
-                      │  └──────────────────────────────────┘ │
-                      └───────────────────────────────────────┘
-                                         │
-                                         ▼
-                              ┌────────────────────┐
-                              │   PostgreSQL 15    │
-                              │  (cdp_analytics)   │
-                              │                    │
-                              │  Tables:           │
-                              │  - profiles_raw    │
-                              │  - stg_profiles    │
-                              │  - mart_computed_  │
-                              │    attributes      │
-                              └────────────────────┘
-                                      │
-          ┌───────────────────────────┴─────────────────────┐
-          │                                                 │
-          ▼                                                 ▼
-┌──────────────────────┐                         ┌──────────────────────────┐                                       
-│   ACTIVATION LAYER   │                         │   DEBUGGING FRONTEND     │
-│   (FastAPI)          │                         │   (Streamlit)            │
-│                      │                         │                          │
-│  Routers:            │                         │  Features:               │
-│  - Personalization   │                         │  - Profile Inspector     │
-│  - Graph Operations  │                         │  - Graph Visualization   │
-│                      │                         │    (streamlit-agraph)    │
-│  Services:           │                         │  - Anomaly Detection     │
-│  - ProfileService    │                         │  - AI Cluster Analysis   │
-│  - GraphService      │                         │  - Graph Surgery Tools   │
-│  - AIService         │                         │  - Health Monitoring     │
-│  - Gemini RAG        │                         │                          │
-└──────────────────────┘                         └──────────────────────────┘
-```
-
----
 
 ## 2. Architecture Patterns
 
