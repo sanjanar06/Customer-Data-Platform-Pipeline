@@ -8,35 +8,6 @@ The CDP API provides AI-powered personalization, graph operations, and identity 
 
 **API Documentation:** http://localhost:8000/docs (Swagger UI)
 
-## Architecture
-
-```
-┌─────────────┐
-│   Client    │
-│  (Browser/  │
-│   Streamlit)│
-└──────┬──────┘
-       │
-       ▼
-┌─────────────────────┐
-│   FastAPI Router    │
-│  ├─ Personalization │
-│  └─ Graph Debugging │
-└──────┬──────────────┘
-       │
-       ├────────────────┬──────────────┬─────────────┐
-       ▼                ▼              ▼             ▼
-┌────────────┐  ┌──────────────┐  ┌────────┐  ┌─────────┐
-│  Profile   │  │    Graph     │  │  AI    │  │ Gemini  │
-│  Service   │  │   Service    │  │Service │  │   API   │
-└─────┬──────┘  └──────┬───────┘  └───┬────┘  └─────────┘
-      │                │               │
-      ▼                ▼               ▼
-┌──────────┐    ┌──────────┐    (AI Analysis)
-│ MongoDB  │    │  Neo4j   │
-└──────────┘    └──────────┘
-```
-
 ## Endpoints
 
 ### Personalization Endpoints
@@ -478,23 +449,6 @@ If Gemini API is unavailable or `GEMINI_API_KEY` is not set:
 - API returns **mock offers** based on customer tier
 - No AI generation, uses rule-based logic
 - All endpoints remain functional
-
----
-## CORS
-
-CORS is enabled for all origins in development.
-
-**Current Configuration:**
-```python
-allow_origins=["*"]
-allow_methods=["*"]
-allow_headers=["*"]
-```
-
-**Production Recommendation:**
-- Restrict `allow_origins` to specific domains
-- Use authentication tokens
-- Implement proper security headers
 
 ---
 
