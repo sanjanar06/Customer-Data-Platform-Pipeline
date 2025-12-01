@@ -27,3 +27,16 @@ echo "Check status: docker-compose ps"
 echo "View logs: docker-compose logs -f [service-name]"
 echo "Stop services: ./scripts/stop_services.sh"
 echo ""
+
+echo "Waiting for services to stabilize..."
+sleep 10
+
+echo "Initializing Neo4j Schema & Constraints..."
+# Activate venv if it exists
+if [ -d "venv" ]; then
+    source venv/bin/activate
+fi
+python ../scripts/init_neo4j.py
+
+echo ""
+echo "✅ System Ready!"

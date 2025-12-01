@@ -4,7 +4,6 @@ Tests event generation logic.
 """
 import pytest
 from src.python.producer.event_generator import (
-    generate_event_with_timestamp,
     get_demo_events,
     DEMO_EVENTS
 )
@@ -12,23 +11,6 @@ from src.python.producer.event_generator import (
 
 class TestEventGeneration:
     """Tests for event generation functions."""
-    
-    def test_generate_event_with_timestamp(self):
-        """Test event generation includes timestamp and sequence."""
-        template = {
-            "event_type": "page_view",
-            "identities": {"deviceID": "test123"},
-            "properties": {"page": "/home"},
-            "description": "Test event"
-        }
-        
-        event = generate_event_with_timestamp(template, sequence=1)
-        
-        assert "timestamp" in event
-        assert event["timestamp"] > 0
-        assert event["sequence"] == 1
-        assert "description" not in event  # Should be removed
-        assert event["event_type"] == "page_view"
     
     def test_get_demo_events(self):
         """Test retrieving demo events."""

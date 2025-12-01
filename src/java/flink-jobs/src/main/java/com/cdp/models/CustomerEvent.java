@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.cdp.utils.IdentityNormalizer;
 import com.fasterxml.jackson.databind.JsonNode;
 
 public class CustomerEvent {
@@ -32,10 +33,21 @@ public class CustomerEvent {
             this.timestamp = System.currentTimeMillis() / 1000;
         }
         
+        // Parse identities
         if (eventNode.has("identities") && eventNode.get("identities").isObject()) {
             JsonNode identitiesNode = eventNode.get("identities");
             identitiesNode.fields().forEachRemaining(entry -> {
-                this.identities.put(entry.getKey(), entry.getValue().asText());
+                String type = entry.getKey();
+                String rawValue = entry.getValue().asText();
+                String normalizedValue = rawValue;
+
+                if (type.equalsIgnoreCase("email")) {
+                    normalizedValue = IdentityNormalizer.normalizeEmail(rawValue);
+                } else if (type.equalsIgnoreCase("phone")) {
+                    normalizedValue = IdentityNormalizer.normalizePhone(rawValue);
+                }
+                this.identities.put(type, normalizedValue);
+
             });
         }
         
@@ -53,6 +65,7 @@ public class CustomerEvent {
                     this.properties.put(entry.getKey(), value.toString());
                 }
             });
+            
         }
     }
     

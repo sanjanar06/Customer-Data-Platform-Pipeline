@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from config.logging_config import setup_logging, get_logger
+from .routers import graph_router
 from .routers import personalization_router
 from .services.ai_service import model as gemini_model
 
@@ -28,7 +29,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(personalization_router)
-
+app.include_router(graph_router)
 
 @app.get("/")
 async def root():
@@ -42,6 +43,7 @@ async def root():
         "endpoints": {
             "personalize": "/api/personalize/{profile_id}",
             "profile_summary": "/api/profile/{profile_id}",
+            "graph_cluster": "/api/graph/cluster/{profile_id}",
             "docs": "/docs",
             "redoc": "/redoc"
         }

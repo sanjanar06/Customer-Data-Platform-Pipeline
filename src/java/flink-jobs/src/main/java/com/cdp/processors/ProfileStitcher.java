@@ -39,19 +39,19 @@ public class ProfileStitcher extends RichMapFunction<String, String> {
         mongoSink = new MongoSink(mongoClient);
         neo4jSink = new Neo4jSink(neo4jDriver);
         
-        System.out.println("✅ ProfileStitcher initialized");
+        System.out.println("ProfileStitcher initialized");
     }
 
     @Override
     public String map(String jsonString) throws Exception {
-        try {
+        // try {
             JsonNode eventNode = JsonParser.parse(jsonString);
             CustomerEvent event = new CustomerEvent(eventNode);
             
             List<Map<String, String>> identities = event.getIdentitiesAsList();
             
             if (identities.isEmpty()) {
-                System.out.println("⚠️ No identities found in event, skipping: " + jsonString);
+                System.out.println("No identities found in event, skipping: " + jsonString);
                 return jsonString;
             }
 
@@ -59,8 +59,8 @@ public class ProfileStitcher extends RichMapFunction<String, String> {
             String masterProfileId = stitchResult.masterProfileId;
             List<Map<String, String>> allIdentities = stitchResult.allIdentities;
             
-            System.out.println("✅ Stitched identities → master_profile_id: " + masterProfileId);
-            System.out.println("   Total identities on profile: " + allIdentities.size());
+            System.out.println("Stitched identities → master_profile_id: " + masterProfileId);
+            System.out.println("Total identities on profile: " + allIdentities.size());
             
             mongoSink.cleanupOrphanedProfiles(masterProfileId, allIdentities);
             
@@ -68,10 +68,10 @@ public class ProfileStitcher extends RichMapFunction<String, String> {
             
             return "SUCCESS: " + masterProfileId;
             
-        } catch (Exception e) {
-            System.err.println("❌ Error processing event: " + e.getMessage());
-            return "ERROR: " + e.getMessage();
-        }
+        // } catch (Exception e) {
+        //     System.err.println("❌ Error processing event: " + e.getMessage());
+        //     return "ERROR: " + e.getMessage();
+        // }
     }
 
     @Override

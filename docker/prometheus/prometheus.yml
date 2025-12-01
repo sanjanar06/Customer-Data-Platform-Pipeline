@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 5s  # Scrape fast for the "Real-Time" feel
+
+scrape_configs:
+  - job_name: 'flink'
+    static_configs:
+      - targets: ['flink-jobmanager:9249', 'flink-taskmanager:9249']
+    metrics_path: /metrics

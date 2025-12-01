@@ -190,3 +190,69 @@ class AIService:
         
         logger.info(f"Generated mock offer for profile {profile.get('master_profile_id')}")
         return offer
+
+    @staticmethod
+    def explain_identity_cluster(cluster_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Uses GenAI to analyze an identity cluster and explain WHY profiles were merged.
+        """
+        # Extract key stats
+        profile_id = cluster_data.get("profile_id")
+        identities = cluster_data.get("identities", [])
+        total_ids = cluster_data.get("total_identities", 0)
+        
+        # Group identities by type for the prompt
+        emails = [i['value'] for i in identities if i['type'] == 'email']
+        devices = [i['value'] for i in identities if i['type'] == 'deviceID']
+        
+        prompt = f"""
+        You are a Senior Data Architect debugging a Customer Data Platform (CDP).
+        Analyze the following Identity Graph Cluster for Master Profile ID: {profile_id}.
+
+        GRAPH DATA:
+        - Total Connected Identities: {total_ids}
+        - Emails Associated: {emails}
+        - Devices Associated: {devices}
+
+        YOUR ANALYSIS TASK:
+        1. Determine the likely nature of this profile (Single User, Household, Shared Device, or Fraud Ring).
+        2. Explain the reasoning based on the ratio of devices to emails.
+        3. Recommend an action (e.g., "Keep merged", "Split profile", "Flag for security").
+
+        RULES:
+        - If there are >3 emails on 1 device, flag as "Suspicious/Shared Device".
+        - If there are >2 devices for 1 email, flag as "High Value User (Multi-device)".
+        - Be concise and professional.
+
+        RETURN JSON ONLY:
+        {{
+            "classification": "Household" | "Shared Device" | "Single User" | "Fraud",
+            "confidence_score": 0-100,
+            "explanation": "One sentence explanation...",
+            "recommended_action": "Action to take..."
+        }}
+        """
+        
+        # Use the existing generate logic (reusing the model configuration)
+        try:
+            if not model:
+                return {
+                    "classification": "Unknown (Mock)",
+                    "explanation": "AI Service unavailable",
+                    "recommended_action": "Check logs"
+                }
+                
+            response = model.generate_content(prompt)
+            response_text = response.text.strip()
+            
+            # Clean markdown if present
+            if response_text.startswith("```"):
+                response_text = response_text.split("```")[1]
+                if response_text.startswith("json"):
+                    response_text = response_text[4:]
+            
+            return json.loads(response_text)
+            
+        except Exception as e:
+            logger.error(f"AI explanation failed: {e}")
+            return {"error": str(e)}

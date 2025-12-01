@@ -1,0 +1,27 @@
+version: 2
+
+models:
+  - name: mart_computed_attributes
+    description: "Final customer metrics table synced to MongoDB"
+    columns:
+      - name: master_profile_id
+        description: "Unique identifier for the unified profile"
+        tests:
+          - unique
+          - not_null
+
+      - name: lifetime_value
+        description: "Total value of purchases"
+        tests:
+          - not_null
+
+      - name: engagement_score
+        description: "Score from 0-100 indicating activity"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0 and engagement_score <= 100"
+
+      - name: total_events
+        tests:
+          - not_null
