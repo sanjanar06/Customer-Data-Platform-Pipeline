@@ -1,6 +1,12 @@
 # CDP Prototype with ELT Pipeline & Fuzzy Identity Matching
 
-## 🏗️ Architecture Overview
+## Demo
+#### Demo:
+https://drive.google.com/file/d/1KXuO464gLm-4loAak89OiyyTV28J6xAr/view?usp=sharing
+
+#### Stress Test : 
+https://drive.google.com/file/d/1joVy_a9YGhhwKU-NqN49mpYgCsNoyOeY/view?usp=sharing
+## Architecture Overview
 
 ### Project Overview
 ![alt text](docs/overall_arc.png)
@@ -8,7 +14,7 @@
 ### Docker Orchestration 
 ![alt text](docs/docker_arc.png)
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 cdp-prototype/
@@ -141,18 +147,19 @@ cdp-prototype/
     └── SETUP.md                 # Installation guide
 ```
 
-## 🔄 Data Flow
+## Data Flow
 
 ![alt text](docs/dataflow_arc.png)
 
-## 📚 Documentation
+## Documentation
 
 - **[Architecture](docs/ARCHITECTURE.md)**: System design, data flows, technical decisions
 - **[API Documentation](docs/API_DOCUMENTATION.md)**: Endpoint reference, schemas, examples
 - **[Setup Guide](docs/SETUP.md)**: Detailed installation and configuration
 
 ---
-## 📊 Service Access Points
+
+## Service Access Points
 
 | Service | URL/Port | Purpose |
 |---------|----------|---------|
@@ -166,7 +173,7 @@ cdp-prototype/
 
 ---
 
-## 🏗️ Key Features
+## Key Features
 
 ### ✅ Identity Resolution
 - **Exact matching**: Email, phone, deviceID, userID
@@ -201,7 +208,7 @@ cdp-prototype/
 
 ---
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 | Layer | Technology | Purpose |
 |-------|------------|---------|
